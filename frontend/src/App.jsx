@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
+import { HashRouter, Routes, Route, NavLink } from "react-router-dom";
 
 import HomePage from "./pages/HomePage";
 import RealtimePage from "./pages/RealtimePage";
@@ -211,7 +211,7 @@ function App() {
   }
 
   return (
-    <BrowserRouter>
+    <HashRouter>
       <div
         style={{
           fontFamily: "Inter, Arial, sans-serif",
@@ -452,7 +452,7 @@ function App() {
           </main>
         </div>
       </div>
-    </BrowserRouter>
+    </HashRouter>
   );
 }
 
