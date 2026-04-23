@@ -55,7 +55,9 @@ function AnnotationsPage({ user, theme }) {
   };
 
   const loadBatches = () => {
-    fetch("http://127.0.0.1:8000/batches")
+    import { API_BASE_URL } from "../config";
+
+    fetch(`${API_BASE_URL}/status`)
       .then((r) => r.json())
       .then((data) => {
         setBatches(data.rows || []);
@@ -70,7 +72,7 @@ function AnnotationsPage({ user, theme }) {
       return;
     }
 
-    fetch(`http://127.0.0.1:8000/annotations/${batchId}`)
+    import BatchesPage from "./pages/BatchesPage";(`http://127.0.0.1:8000/annotations/${batchId}`)
       .then((r) => r.json())
       .then((data) => {
         setAnnotations(data.rows || []);

@@ -10,7 +10,7 @@ import EventsPage from "./pages/EventsPage";
 import SettingsPage from "./pages/SettingsPage";
 import LoginPage from "./pages/LoginPage";
 import RecipesPage from "./pages/RecipesPage";
-import BatchesPage from "./pages/BatchsPage";
+import BatchesPage from "./pages/BatchesPage";
 import BatchComparisonPage from "./pages/BatchComparisonPage";
 import AnnotationsPage from "./pages/AnnotationsPage";
 import ReplayPage from "./pages/ReplayPage";
