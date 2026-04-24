@@ -55,9 +55,7 @@ function AnnotationsPage({ user, theme }) {
   };
 
   const loadBatches = () => {
-    import { API_BASE_URL } from "../config";
-
-    fetch(`${API_BASE_URL}/status`)
+    fetch("http://127.0.0.1:8000/batches")
       .then((r) => r.json())
       .then((data) => {
         setBatches(data.rows || []);
@@ -72,7 +70,7 @@ function AnnotationsPage({ user, theme }) {
       return;
     }
 
-    import BatchesPage from "./pages/BatchesPage";(`http://127.0.0.1:8000/annotations/${batchId}`)
+    fetch(`http://127.0.0.1:8000/annotations/${batchId}`)
       .then((r) => r.json())
       .then((data) => {
         setAnnotations(data.rows || []);
@@ -134,29 +132,33 @@ function AnnotationsPage({ user, theme }) {
       </h2>
 
       {message && (
-        <div style={{
-          backgroundColor: theme.mode === "dark" ? "#16311f" : "#dcfce7",
-          color: theme.success,
-          padding: 15,
-          borderRadius: 14,
-          marginBottom: 20,
-          fontWeight: "bold",
-          border: `1px solid ${theme.success}55`,
-        }}>
+        <div
+          style={{
+            backgroundColor: theme.mode === "dark" ? "#16311f" : "#dcfce7",
+            color: theme.success,
+            padding: 15,
+            borderRadius: 14,
+            marginBottom: 20,
+            fontWeight: "bold",
+            border: `1px solid ${theme.success}55`,
+          }}
+        >
           {message}
         </div>
       )}
 
       {error && (
-        <div style={{
-          backgroundColor: theme.mode === "dark" ? "#3f1d1d" : "#fee2e2",
-          color: theme.danger,
-          padding: 15,
-          borderRadius: 14,
-          marginBottom: 20,
-          fontWeight: "bold",
-          border: `1px solid ${theme.danger}55`,
-        }}>
+        <div
+          style={{
+            backgroundColor: theme.mode === "dark" ? "#3f1d1d" : "#fee2e2",
+            color: theme.danger,
+            padding: 15,
+            borderRadius: 14,
+            marginBottom: 20,
+            fontWeight: "bold",
+            border: `1px solid ${theme.danger}55`,
+          }}
+        >
           {error}
         </div>
       )}
