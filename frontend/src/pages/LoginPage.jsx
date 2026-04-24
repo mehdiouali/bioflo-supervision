@@ -1,42 +1,110 @@
 import { useState } from "react";
+import { API_BASE_URL } from "../config";
 
 function LoginPage({ onLogin, theme }) {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("admin");
+  const [password, setPassword] = useState("admin123");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    fetch(
-      `http://127.0.0.1:8000/login/${encodeURIComponent(username)}/${encodeURIComponent(password)}`
-    )
-      .then((response) => response.json())
-      .then((data) => {
-        if (data.status === "success") {
-          onLogin(data.user);
-          setError("");
-        } else {
-          setError(data.details || "Login failed");
-        }
-      })
-      .catch(() => setError("Impossible de contacter le backend"));
+  const cardStyle = {
+    maxWidth: 520,
+    margin: "0 auto",
+    background: theme.panelAlt,
+    borderRadius: 28,
+    padding: 28,
+    border: `1px solid ${theme.border}`,
+    boxShadow: theme.panelGlow,
+    color: theme.text,
+  };
+
+  const inputStyle = {
+    width: "100%",
+    padding: "16px 18px",
+    borderRadius: 18,
+    border: `1px solid ${theme.border}`,
+    background: theme.inputBg,
+    color: theme.text,
+    fontSize: 18,
+    boxSizing: "border-box",
+    outline: "none",
+  };
+
+  const buttonStyle = {
+    width: "100%",
+    padding: "16px 18px",
+    borderRadius: 18,
+    border: "none",
+    cursor: loading ? "not-allowed" : "pointer",
+    fontWeight: 800,
+    fontSize: 18,
+    color: "#fff",
+    background: `linear-gradient(135deg, ${theme.primary} 0%, ${theme.primaryAlt} 100%)`,
+    opacity: loading ? 0.7 : 1,
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: username.trim(),
+          password: password.trim(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.detail || "Login failed");
+        setLoading(false);
+        return;
+      }
+
+      if (data.status === "success" && data.user) {
+        onLogin(data.user);
+        return;
+      }
+
+      setError("Login failed");
+    } catch (err) {
+      setError("Impossible de contacter le backend");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div
-      style={{
-        maxWidth: 460,
-        margin: "40px auto",
-        background: theme.panelAlt,
-        borderRadius: 28,
-        padding: 30,
-        boxShadow: theme.shadow,
-        border: `1px solid ${theme.border}`,
-      }}
-    >
-      <h2 style={{ marginTop: 0, color: theme.text, fontSize: 28 }}>
+    <div style={cardStyle}>
+      <h2
+        style={{
+          marginTop: 0,
+          marginBottom: 8,
+          textAlign: "center",
+          fontSize: 34,
+          fontWeight: 900,
+          color: theme.text,
+        }}
+      >
         Connexion
       </h2>
-      <p style={{ color: theme.textSoft, marginTop: 8 }}>
+
+      <p
+        style={{
+          textAlign: "center",
+          marginTop: 0,
+          marginBottom: 18,
+          color: theme.textSoft,
+          fontSize: 18,
+        }}
+      >
         Connecte-toi pour accéder au dashboard BioFlo.
       </p>
 
@@ -45,87 +113,85 @@ function LoginPage({ onLogin, theme }) {
           style={{
             backgroundColor: theme.mode === "dark" ? "#3f1d1d" : "#fee2e2",
             color: theme.danger,
-            padding: 12,
-            borderRadius: 14,
-            marginBottom: 16,
-            fontWeight: "bold",
+            padding: 16,
+            borderRadius: 18,
+            marginBottom: 18,
+            fontWeight: 800,
             border: `1px solid ${theme.danger}55`,
+            textAlign: "center",
+            fontSize: 18,
           }}
         >
           {error}
         </div>
       )}
 
-      <div style={{ marginBottom: 14 }}>
-        <label style={{ fontWeight: 700, color: theme.text }}>Username</label>
-        <input
-          style={{
-            width: "100%",
-            padding: 13,
-            borderRadius: 14,
-            border: `1px solid ${theme.border}`,
-            marginTop: 6,
-            backgroundColor: theme.inputBg,
-            color: theme.text,
-            outline: "none",
-          }}
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-        />
-      </div>
+      <form onSubmit={handleSubmit}>
+        <div style={{ marginBottom: 18 }}>
+          <label
+            style={{
+              display: "block",
+              marginBottom: 10,
+              fontWeight: 800,
+              fontSize: 18,
+              color: theme.text,
+              textAlign: "center",
+            }}
+          >
+            Username
+          </label>
+          <input
+            style={inputStyle}
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            autoComplete="username"
+          />
+        </div>
 
-      <div style={{ marginBottom: 18 }}>
-        <label style={{ fontWeight: 700, color: theme.text }}>Password</label>
-        <input
-          type="password"
-          style={{
-            width: "100%",
-            padding: 13,
-            borderRadius: 14,
-            border: `1px solid ${theme.border}`,
-            marginTop: 6,
-            backgroundColor: theme.inputBg,
-            color: theme.text,
-            outline: "none",
-          }}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-      </div>
+        <div style={{ marginBottom: 22 }}>
+          <label
+            style={{
+              display: "block",
+              marginBottom: 10,
+              fontWeight: 800,
+              fontSize: 18,
+              color: theme.text,
+              textAlign: "center",
+            }}
+          >
+            Password
+          </label>
+          <input
+            type="password"
+            style={inputStyle}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+          />
+        </div>
 
-      <button
-        onClick={handleLogin}
-        style={{
-          padding: "13px 16px",
-          borderRadius: 16,
-          border: "none",
-          cursor: "pointer",
-          fontWeight: 800,
-          color: "#fff",
-          background: `linear-gradient(135deg, ${theme.primary} 0%, ${theme.primaryAlt} 100%)`,
-          width: "100%",
-          boxShadow: `0 12px 20px ${theme.primary}33`,
-          fontSize: 15,
-        }}
-      >
-        Se connecter
-      </button>
+        <button type="submit" style={buttonStyle} disabled={loading}>
+          {loading ? "Connexion..." : "Se connecter"}
+        </button>
+      </form>
 
       <div
         style={{
-          marginTop: 20,
-          fontSize: 14,
-          color: theme.textSoft,
-          backgroundColor: theme.panel,
-          padding: 16,
-          borderRadius: 16,
+          marginTop: 24,
+          padding: 20,
+          borderRadius: 20,
+          background: theme.panel,
           border: `1px solid ${theme.border}`,
+          textAlign: "center",
+          color: theme.textSoft,
+          lineHeight: 1.9,
+          fontSize: 16,
         }}
       >
-        <p style={{ margin: "4px 0" }}>viewer / viewer123</p>
-        <p style={{ margin: "4px 0" }}>operator / operator123</p>
-        <p style={{ margin: "4px 0" }}>supervisor / supervisor123</p>
-        <p style={{ margin: "4px 0" }}>admin / admin123</p>
+        <div>viewer / viewer123</div>
+        <div>operator / operator123</div>
+        <div>supervisor / supervisor123</div>
+        <div>admin / admin123</div>
       </div>
     </div>
   );
