@@ -1,13 +1,14 @@
 from datetime import datetime
 from io import StringIO
 import csv
-from app.core.bootstrap_schema import init_database
+
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import text
 
+from app.core.bootstrap_schema import init_database
 from app.core.db import (
     engine,
     test_database_connection,
@@ -63,9 +64,6 @@ app.add_middleware(
 )
 
 
-# -----------------------------
-# Models
-# -----------------------------
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -141,9 +139,6 @@ class AnnotationCreateRequest(BaseModel):
     author: str
 
 
-# -----------------------------
-# Startup helpers
-# -----------------------------
 def ensure_default_settings():
     defaults = [
         ("source_mode", "simulation", "string"),
@@ -180,26 +175,43 @@ def ensure_default_realtime_values():
         save_realtime_value(key, value)
 
 
+def ensure_default_users():
+    query = text(
+        """
+        INSERT INTO app_users (username, password, role, full_name, is_active)
+        VALUES
+            ('viewer', 'viewer123', 'viewer', 'Viewer User', TRUE),
+            ('operator', 'operator123', 'operator', 'Operator User', TRUE),
+            ('supervisor', 'supervisor123', 'supervisor', 'Supervisor User', TRUE),
+            ('admin', 'admin123', 'admin', 'Administrator', TRUE)
+        ON CONFLICT (username) DO NOTHING
+        """
+    )
+    with engine.begin() as connection:
+        connection.execute(query)
+
+
 @app.on_event("startup")
 def startup_tasks():
     init_database()
+    ensure_default_users()
     ensure_default_settings()
     ensure_default_realtime_values()
     save_system_event("startup", "BioFlo backend started")
 
-# -----------------------------
-# Utility functions
-# -----------------------------
+
 def parse_bool(value):
     return str(value).lower() in ["1", "true", "yes", "on"]
 
 
 def get_db_realtime_rows():
-    query = text("""
+    query = text(
+        """
         SELECT tag_name, tag_value, updated_at
         FROM realtime_values
         ORDER BY tag_name ASC
-    """)
+        """
+    )
     with engine.connect() as connection:
         rows = connection.execute(query).mappings().all()
     return [dict(row) for row in rows]
@@ -229,36 +241,42 @@ def get_realtime_payload():
 
 
 def get_active_alarms():
-    query = text("""
+    query = text(
+        """
         SELECT id, code, message, priority, status, created_at
         FROM alarms
         WHERE status IN ('active', 'acknowledged')
         ORDER BY created_at DESC
-    """)
+        """
+    )
     with engine.connect() as connection:
         rows = connection.execute(query).mappings().all()
     return [dict(row) for row in rows]
 
 
 def get_all_alarms(limit=200):
-    query = text("""
+    query = text(
+        """
         SELECT id, code, message, priority, status, created_at
         FROM alarms
         ORDER BY created_at DESC
         LIMIT :limit
-    """)
+        """
+    )
     with engine.connect() as connection:
         rows = connection.execute(query, {"limit": limit}).mappings().all()
     return [dict(row) for row in rows]
 
 
 def get_system_events(limit=200):
-    query = text("""
+    query = text(
+        """
         SELECT id, event_type, message, created_at
         FROM system_events
         ORDER BY created_at DESC
         LIMIT :limit
-    """)
+        """
+    )
     with engine.connect() as connection:
         rows = connection.execute(query, {"limit": limit}).mappings().all()
     return [dict(row) for row in rows]
@@ -285,12 +303,7 @@ def get_tag_stats(tag_name, start_time, end_time):
         try:
             value = float(row["tag_value"])
             values.append(value)
-            points.append(
-                {
-                    "recorded_at": row["recorded_at"],
-                    "tag_value": value,
-                }
-            )
+            points.append({"recorded_at": row["recorded_at"], "tag_value": value})
         except Exception:
             continue
 
@@ -333,12 +346,10 @@ def get_recipe_targets(recipe_id):
 
     fields = ["temp_setpoint", "ph_setpoint", "do_setpoint", "rpm_setpoint"]
     targets = {}
-
     for field in fields:
         vals = [step[field] for step in steps if step.get(field) is not None]
         if vals:
             targets[field] = round(sum(vals) / len(vals), 3)
-
     return targets
 
 
@@ -363,28 +374,31 @@ def build_batch_analysis(batch_id):
     recipe_comparison = {
         "temp_reactor": {
             "target_avg": recipe_targets.get("temp_setpoint"),
-            "deviation": None if temp_data["stats"]["avg"] is None or recipe_targets.get("temp_setpoint") is None
+            "deviation": None
+            if temp_data["stats"]["avg"] is None or recipe_targets.get("temp_setpoint") is None
             else round(temp_data["stats"]["avg"] - recipe_targets["temp_setpoint"], 3),
         },
         "ph_value": {
             "target_avg": recipe_targets.get("ph_setpoint"),
-            "deviation": None if ph_data["stats"]["avg"] is None or recipe_targets.get("ph_setpoint") is None
+            "deviation": None
+            if ph_data["stats"]["avg"] is None or recipe_targets.get("ph_setpoint") is None
             else round(ph_data["stats"]["avg"] - recipe_targets["ph_setpoint"], 3),
         },
         "do_percent": {
             "target_avg": recipe_targets.get("do_setpoint"),
-            "deviation": None if do_data["stats"]["avg"] is None or recipe_targets.get("do_setpoint") is None
+            "deviation": None
+            if do_data["stats"]["avg"] is None or recipe_targets.get("do_setpoint") is None
             else round(do_data["stats"]["avg"] - recipe_targets["do_setpoint"], 3),
         },
         "stirrer_rpm": {
             "target_avg": recipe_targets.get("rpm_setpoint"),
-            "deviation": None if rpm_data["stats"]["avg"] is None or recipe_targets.get("rpm_setpoint") is None
+            "deviation": None
+            if rpm_data["stats"]["avg"] is None or recipe_targets.get("rpm_setpoint") is None
             else round(rpm_data["stats"]["avg"] - recipe_targets["rpm_setpoint"], 3),
         },
     }
 
     observations = []
-
     if temp_data["out_of_range"]["percent"] > 10:
         observations.append("La température a passé une part significative du batch hors plage.")
     if ph_data["out_of_range"]["percent"] > 10:
@@ -548,9 +562,6 @@ def compare_batches(batch_a_id, batch_b_id):
     }
 
 
-# -----------------------------
-# Basic routes
-# -----------------------------
 @app.get("/")
 def root():
     return {"message": "BioFlo Supervision backend is running", "status": "ok"}
@@ -574,9 +585,6 @@ def db_status():
         return {"database": "error", "details": str(exc)}
 
 
-# -----------------------------
-# Auth
-# -----------------------------
 @app.post("/login")
 def login(payload: LoginRequest):
     user = authenticate_user(payload.username, payload.password)
@@ -584,10 +592,7 @@ def login(payload: LoginRequest):
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     save_audit_log(payload.username, "login", "app", "Successful login")
-    return {
-        "status": "success",
-        "user": user,
-    }
+    return {"status": "success", "user": user}
 
 
 @app.get("/users")
@@ -595,9 +600,6 @@ def list_users():
     return {"rows": get_all_users()}
 
 
-# -----------------------------
-# Source mode / realtime
-# -----------------------------
 @app.get("/source-mode")
 def source_mode():
     return {"source_mode": get_setting("source_mode", "simulation")}
@@ -626,9 +628,6 @@ def db_realtime():
     return {"rows": get_db_realtime_rows()}
 
 
-# -----------------------------
-# Alarms
-# -----------------------------
 @app.get("/alarms")
 def alarms():
     rows = get_active_alarms()
@@ -650,11 +649,13 @@ def db_alarms():
 
 @app.get("/ack-alarm/{code}")
 def ack_alarm(code: str, actor: str = Query(default="operator")):
-    query = text("""
+    query = text(
+        """
         UPDATE alarms
         SET status = 'acknowledged'
         WHERE code = :code AND status = 'active'
-    """)
+        """
+    )
     with engine.begin() as connection:
         connection.execute(query, {"code": code})
 
@@ -664,11 +665,13 @@ def ack_alarm(code: str, actor: str = Query(default="operator")):
 
 @app.get("/ack-all-alarms")
 def ack_all_alarms(actor: str = Query(default="operator")):
-    query = text("""
+    query = text(
+        """
         UPDATE alarms
         SET status = 'acknowledged'
         WHERE status = 'active'
-    """)
+        """
+    )
     with engine.begin() as connection:
         connection.execute(query)
 
@@ -676,9 +679,6 @@ def ack_all_alarms(actor: str = Query(default="operator")):
     return {"status": "acknowledged_all"}
 
 
-# -----------------------------
-# Events / audit
-# -----------------------------
 @app.get("/db-events")
 def db_events():
     return {"rows": get_system_events()}
@@ -715,9 +715,6 @@ def export_audit():
     )
 
 
-# -----------------------------
-# Settings
-# -----------------------------
 @app.get("/settings")
 def settings():
     return {"rows": get_all_settings()}
@@ -726,18 +723,10 @@ def settings():
 @app.post("/settings")
 def save_setting(payload: SettingUpdateRequest):
     update_setting(payload.setting_key, payload.setting_value, payload.value_type)
-    save_audit_log(
-        payload.actor,
-        "update_setting",
-        payload.setting_key,
-        payload.setting_value,
-    )
+    save_audit_log(payload.actor, "update_setting", payload.setting_key, payload.setting_value)
     return {"status": "success"}
 
 
-# -----------------------------
-# Recipes
-# -----------------------------
 @app.get("/recipes")
 def recipes():
     return {"rows": get_all_recipes()}
@@ -824,9 +813,6 @@ def delete_recipe_step_route(step_id: int):
     return {"status": "success"}
 
 
-# -----------------------------
-# Batches
-# -----------------------------
 @app.get("/batches")
 def batches():
     return {"rows": get_all_batch_runs()}
@@ -909,9 +895,6 @@ def create_batch_note(payload: BatchNoteCreateRequest):
     return {"status": "success", "note_id": note_id}
 
 
-# -----------------------------
-# Batch analysis / comparison / replay / health
-# -----------------------------
 @app.get("/batches/{batch_id}/analysis")
 def batch_analysis(batch_id: int):
     analysis = build_batch_analysis(batch_id)
@@ -981,9 +964,6 @@ def replay(batch_id: int):
     }
 
 
-# -----------------------------
-# Annotations
-# -----------------------------
 @app.get("/annotations/{batch_id}")
 def get_annotations(batch_id: int):
     return {"rows": get_pedagogical_annotations(batch_id)}
