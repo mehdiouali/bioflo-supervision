@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import text
+from app.services.simulator import start_simulation_background
 
 from app.core.bootstrap_schema import init_database
 from app.core.db import (
@@ -197,7 +198,46 @@ def startup_tasks():
     ensure_default_users()
     ensure_default_settings()
     ensure_default_realtime_values()
+    start_simulation_background()
     save_system_event("startup", "BioFlo backend started")
+@app.get("/trends")
+def trends(limit: int = Query(default=120)):
+    tags = ["temp_reactor", "ph_value", "do_percent", "stirrer_rpm"]
+
+    query = text(
+        """
+        SELECT id, tag_name, tag_value, recorded_at
+        FROM historical_values
+        WHERE tag_name = :tag_name
+        ORDER BY recorded_at DESC
+        LIMIT :limit
+        """
+    )
+
+    result = {}
+
+    with engine.connect() as connection:
+        for tag in tags:
+            rows = connection.execute(
+                query,
+                {"tag_name": tag, "limit": limit},
+            ).mappings().all()
+
+            cleaned = []
+            for row in reversed(rows):
+                try:
+                    cleaned.append(
+                        {
+                            "recorded_at": row["recorded_at"],
+                            "tag_value": float(row["tag_value"]),
+                        }
+                    )
+                except Exception:
+                    continue
+
+            result[tag] = cleaned
+
+    return {"status": "success", "series": result}
 
 
 def parse_bool(value):
