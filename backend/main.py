@@ -603,6 +603,27 @@ def list_users():
 @app.get("/source-mode")
 def source_mode():
     return {"source_mode": get_setting("source_mode", "simulation")}
+@app.get("/seed-default-users")
+def seed_default_users():
+    query = text(
+        """
+        INSERT INTO app_users (username, password, role, full_name, is_active)
+        VALUES
+            ('viewer', 'viewer123', 'viewer', 'Viewer User', TRUE),
+            ('operator', 'operator123', 'operator', 'Operator User', TRUE),
+            ('supervisor', 'supervisor123', 'supervisor', 'Supervisor User', TRUE),
+            ('admin', 'admin123', 'admin', 'Administrator', TRUE)
+        ON CONFLICT (username) DO UPDATE SET
+            password = EXCLUDED.password,
+            role = EXCLUDED.role,
+            full_name = EXCLUDED.full_name,
+            is_active = EXCLUDED.is_active
+        """
+    )
+    with engine.begin() as connection:
+        connection.execute(query)
+
+    return {"status": "success", "message": "Default users seeded"}
 
 
 @app.get("/set-source-mode/{mode}")
