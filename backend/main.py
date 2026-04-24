@@ -1,7 +1,7 @@
 from datetime import datetime
 from io import StringIO
 import csv
-
+from app.core.bootstrap_schema import init_database
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
