@@ -3,6 +3,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import SQLAlchemyError
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 ENV_PATH = BASE_DIR / ".env"
@@ -87,9 +88,12 @@ def get_all_settings():
         FROM app_settings
         ORDER BY setting_key
     """)
-    with engine.connect() as connection:
-        rows = connection.execute(query).mappings().all()
-    return [dict(row) for row in rows]
+    try:
+        with engine.connect() as connection:
+            rows = connection.execute(query).mappings().all()
+        return [dict(row) for row in rows]
+    except SQLAlchemyError:
+        return []
 
 
 def get_setting(setting_key, default_value=None):
@@ -99,12 +103,14 @@ def get_setting(setting_key, default_value=None):
         WHERE setting_key = :setting_key
         LIMIT 1
     """)
-    with engine.connect() as connection:
-        row = connection.execute(query, {"setting_key": setting_key}).mappings().first()
-
-    if row:
-        return row["setting_value"]
-    return default_value
+    try:
+        with engine.connect() as connection:
+            row = connection.execute(query, {"setting_key": setting_key}).mappings().first()
+        if row:
+            return row["setting_value"]
+        return default_value
+    except SQLAlchemyError:
+        return default_value
 
 
 def update_setting(setting_key, setting_value, value_type="string"):

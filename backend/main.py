@@ -182,10 +182,10 @@ def ensure_default_realtime_values():
 
 @app.on_event("startup")
 def startup_tasks():
+    init_database()
     ensure_default_settings()
     ensure_default_realtime_values()
     save_system_event("startup", "BioFlo backend started")
-
 
 # -----------------------------
 # Utility functions
