@@ -347,56 +347,6 @@ def add_recipe_step(
     return row["id"]
 
 
-def update_recipe_step(
-    step_id,
-    step_order,
-    step_name,
-    duration_min,
-    temp_setpoint,
-    ph_setpoint,
-    do_setpoint,
-    rpm_setpoint,
-    notes,
-):
-    query = text("""
-        UPDATE recipe_steps
-        SET
-            step_order = :step_order,
-            step_name = :step_name,
-            duration_min = :duration_min,
-            temp_setpoint = :temp_setpoint,
-            ph_setpoint = :ph_setpoint,
-            do_setpoint = :do_setpoint,
-            rpm_setpoint = :rpm_setpoint,
-            notes = :notes
-        WHERE id = :step_id
-    """)
-    with engine.begin() as connection:
-        connection.execute(
-            query,
-            {
-                "step_id": step_id,
-                "step_order": step_order,
-                "step_name": step_name,
-                "duration_min": duration_min,
-                "temp_setpoint": temp_setpoint,
-                "ph_setpoint": ph_setpoint,
-                "do_setpoint": do_setpoint,
-                "rpm_setpoint": rpm_setpoint,
-                "notes": notes,
-            },
-        )
-
-
-def delete_recipe_step(step_id):
-    query = text("""
-        DELETE FROM recipe_steps
-        WHERE id = :step_id
-    """)
-    with engine.begin() as connection:
-        connection.execute(query, {"step_id": step_id})
-
-
 def get_all_batch_runs():
     query = text("""
         SELECT

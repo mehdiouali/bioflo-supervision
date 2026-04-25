@@ -1,22 +1,23 @@
 import { useEffect, useState } from "react";
+import { API_BASE_URL } from "../config";
 
 function RecipesPage({ user, theme }) {
   const [recipes, setRecipes] = useState([]);
   const [selectedRecipe, setSelectedRecipe] = useState(null);
-  const [selectedSteps, setSelectedSteps] = useState([]);
+  const [recipeSteps, setRecipeSteps] = useState([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  const [newRecipe, setNewRecipe] = useState({
+  const [recipeForm, setRecipeForm] = useState({
     name: "",
     description: "",
     objective: "",
   });
 
-  const [newStep, setNewStep] = useState({
+  const [stepForm, setStepForm] = useState({
     step_order: 1,
     step_name: "",
-    duration_min: 0,
+    duration_min: 10,
     temp_setpoint: "",
     ph_setpoint: "",
     do_setpoint: "",
@@ -24,48 +25,45 @@ function RecipesPage({ user, theme }) {
     notes: "",
   });
 
-  const canEdit = ["supervisor", "admin"].includes(user?.role);
-
   const cardStyle = {
     background: theme.panelAlt,
     borderRadius: "22px",
     padding: "20px",
-    boxShadow: "0 10px 22px rgba(15,23,42,0.05)",
     border: `1px solid ${theme.border}`,
-    marginBottom: "20px",
+    boxShadow: "0 10px 22px rgba(15,23,42,0.05)",
     color: theme.text,
+    marginBottom: "20px",
   };
 
   const inputStyle = {
     width: "100%",
     padding: "10px 12px",
-    borderRadius: "10px",
+    borderRadius: "12px",
     border: `1px solid ${theme.border}`,
     backgroundColor: theme.inputBg,
     color: theme.text,
-    marginTop: "6px",
+    marginTop: 6,
+    boxSizing: "border-box",
   };
 
   const buttonStyle = {
     padding: "10px 14px",
     borderRadius: "12px",
     border: "none",
-    cursor: canEdit ? "pointer" : "not-allowed",
+    cursor: "pointer",
     fontWeight: "bold",
     color: "#fff",
-    background: canEdit
-      ? `linear-gradient(135deg, ${theme.primary} 0%, ${theme.primaryAlt} 100%)`
-      : "linear-gradient(135deg, #94a3b8 0%, #64748b 100%)",
-    opacity: canEdit ? 1 : 0.8,
+    background: `linear-gradient(135deg, ${theme.primary} 0%, ${theme.primaryAlt} 100%)`,
   };
 
-  const dangerButtonStyle = {
-    ...buttonStyle,
-    background: `linear-gradient(135deg, ${theme.danger} 0%, #b91c1c 100%)`,
+  const gridStyle = {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: "12px",
   };
 
   const loadRecipes = () => {
-    fetch("http://127.0.0.1:8000/recipes")
+    fetch(`${API_BASE_URL}/recipes`)
       .then((r) => r.json())
       .then((data) => {
         setRecipes(data.rows || []);
@@ -75,16 +73,12 @@ function RecipesPage({ user, theme }) {
   };
 
   const loadRecipeDetails = (recipeId) => {
-    fetch(`http://127.0.0.1:8000/recipes/${recipeId}`)
+    fetch(`${API_BASE_URL}/recipes/${recipeId}`)
       .then((r) => r.json())
       .then((data) => {
-        if (data.status === "success") {
-          setSelectedRecipe(data.recipe);
-          setSelectedSteps(data.steps || []);
-          setError("");
-        } else {
-          setError(data.details || "Erreur lors du chargement de la recette");
-        }
+        setSelectedRecipe(data.recipe || null);
+        setRecipeSteps(data.steps || []);
+        setError("");
       })
       .catch(() => setError("Impossible de charger le détail de la recette"));
   };
@@ -93,107 +87,116 @@ function RecipesPage({ user, theme }) {
     loadRecipes();
   }, []);
 
-  const handleCreateRecipe = async () => {
-    if (!canEdit) return;
-
-    const response = await fetch("http://127.0.0.1:8000/recipes", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        ...newRecipe,
-        created_by: user.username,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (data.status === "success") {
-      setMessage("Recette créée avec succès");
-      setNewRecipe({ name: "", description: "", objective: "" });
-      loadRecipes();
-    } else {
-      setError(data.details || "Erreur lors de la création de la recette");
+  const createRecipe = async () => {
+    if (!recipeForm.name.trim()) {
+      setError("Le nom de la recette est obligatoire");
+      return;
     }
-  };
 
-  const handleDeleteRecipe = async (recipeId) => {
-    if (!canEdit) return;
+    try {
+      const response = await fetch(`${API_BASE_URL}/recipes`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: recipeForm.name,
+          description: recipeForm.description,
+          objective: recipeForm.objective,
+          created_by: user?.username || "admin",
+        }),
+      });
 
-    const response = await fetch(
-      `http://127.0.0.1:8000/recipes/${recipeId}?actor=${encodeURIComponent(user.username)}`,
-      { method: "DELETE" }
-    );
-    const data = await response.json();
+      const data = await response.json();
 
-    if (data.status === "success") {
-      setMessage("Recette supprimée");
-      if (selectedRecipe?.id === recipeId) {
-        setSelectedRecipe(null);
-        setSelectedSteps([]);
+      if (!response.ok) {
+        setError(data.detail || "Erreur lors de la création");
+        return;
       }
+
+      setMessage("Recette créée avec succès");
+      setError("");
+      setRecipeForm({
+        name: "",
+        description: "",
+        objective: "",
+      });
+
       loadRecipes();
-    } else {
-      setError(data.details || "Erreur lors de la suppression");
+
+      if (data.recipe_id) {
+        loadRecipeDetails(data.recipe_id);
+      }
+    } catch (err) {
+      setError("Impossible de créer la recette");
     }
   };
 
-  const handleAddStep = async () => {
-    if (!canEdit || !selectedRecipe) return;
+  const addStep = async () => {
+    if (!selectedRecipe) {
+      setError("Sélectionne d'abord une recette");
+      return;
+    }
 
-    const response = await fetch("http://127.0.0.1:8000/recipe-steps", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        recipe_id: selectedRecipe.id,
-        ...newStep,
-        actor: user.username,
-      }),
-    });
+    if (!stepForm.step_name.trim()) {
+      setError("Le nom de l'étape est obligatoire");
+      return;
+    }
 
-    const data = await response.json();
+    try {
+      const response = await fetch(`${API_BASE_URL}/recipes/${selectedRecipe.id}/steps`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          step_order: Number(stepForm.step_order),
+          step_name: stepForm.step_name,
+          duration_min: Number(stepForm.duration_min),
+          temp_setpoint: stepForm.temp_setpoint === "" ? null : Number(stepForm.temp_setpoint),
+          ph_setpoint: stepForm.ph_setpoint === "" ? null : Number(stepForm.ph_setpoint),
+          do_setpoint: stepForm.do_setpoint === "" ? null : Number(stepForm.do_setpoint),
+          rpm_setpoint: stepForm.rpm_setpoint === "" ? null : Number(stepForm.rpm_setpoint),
+          notes: stepForm.notes,
+        }),
+      });
 
-    if (data.status === "success") {
-      setMessage("Étape ajoutée");
-      setNewStep({
-        step_order: selectedSteps.length + 2,
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.detail || "Erreur lors de l'ajout d'étape");
+        return;
+      }
+
+      setMessage("Étape ajoutée avec succès");
+      setError("");
+      setStepForm({
+        step_order: stepForm.step_order + 1,
         step_name: "",
-        duration_min: 0,
+        duration_min: 10,
         temp_setpoint: "",
         ph_setpoint: "",
         do_setpoint: "",
         rpm_setpoint: "",
         notes: "",
       });
+
       loadRecipeDetails(selectedRecipe.id);
-    } else {
-      setError(data.details || "Erreur lors de l’ajout de l’étape");
-    }
-  };
-
-  const handleDeleteStep = async (stepId) => {
-    if (!canEdit) return;
-
-    const response = await fetch(
-      `http://127.0.0.1:8000/recipe-steps/${stepId}?actor=${encodeURIComponent(user.username)}`,
-      { method: "DELETE" }
-    );
-    const data = await response.json();
-
-    if (data.status === "success") {
-      setMessage("Étape supprimée");
-      loadRecipeDetails(selectedRecipe.id);
-    } else {
-      setError(data.details || "Erreur lors de la suppression de l’étape");
+    } catch (err) {
+      setError("Impossible d'ajouter l'étape");
     }
   };
 
   return (
     <div>
-      <h2 style={{ color: theme.text, marginBottom: "20px", fontSize: "24px", fontWeight: 800 }}>
+      <h2
+        style={{
+          color: theme.text,
+          marginBottom: 20,
+          fontSize: 24,
+          fontWeight: 800,
+        }}
+      >
         Recettes
       </h2>
 
@@ -202,9 +205,9 @@ function RecipesPage({ user, theme }) {
           style={{
             backgroundColor: theme.mode === "dark" ? "#16311f" : "#dcfce7",
             color: theme.success,
-            padding: "15px",
-            borderRadius: "14px",
-            marginBottom: "20px",
+            padding: 15,
+            borderRadius: 14,
+            marginBottom: 20,
             fontWeight: "bold",
             border: `1px solid ${theme.success}55`,
           }}
@@ -218,9 +221,9 @@ function RecipesPage({ user, theme }) {
           style={{
             backgroundColor: theme.mode === "dark" ? "#3f1d1d" : "#fee2e2",
             color: theme.danger,
-            padding: "15px",
-            borderRadius: "14px",
-            marginBottom: "20px",
+            padding: 15,
+            borderRadius: 14,
+            marginBottom: 20,
             fontWeight: "bold",
             border: `1px solid ${theme.danger}55`,
           }}
@@ -230,7 +233,45 @@ function RecipesPage({ user, theme }) {
       )}
 
       <div style={cardStyle}>
-        <h3>Liste des recettes</h3>
+        <h3 style={{ marginTop: 0 }}>Créer une recette</h3>
+
+        <div style={gridStyle}>
+          <div>
+            <label>Nom</label>
+            <input
+              style={inputStyle}
+              value={recipeForm.name}
+              onChange={(e) => setRecipeForm({ ...recipeForm, name: e.target.value })}
+            />
+          </div>
+
+          <div>
+            <label>Objectif</label>
+            <input
+              style={inputStyle}
+              value={recipeForm.objective}
+              onChange={(e) => setRecipeForm({ ...recipeForm, objective: e.target.value })}
+            />
+          </div>
+        </div>
+
+        <div style={{ marginTop: 12 }}>
+          <label>Description</label>
+          <textarea
+            style={{ ...inputStyle, minHeight: 90 }}
+            value={recipeForm.description}
+            onChange={(e) => setRecipeForm({ ...recipeForm, description: e.target.value })}
+          />
+        </div>
+
+        <button style={{ ...buttonStyle, marginTop: 14 }} onClick={createRecipe}>
+          Ajouter recette
+        </button>
+      </div>
+
+      <div style={cardStyle}>
+        <h3 style={{ marginTop: 0 }}>Liste des recettes</h3>
+
         {recipes.length > 0 ? (
           recipes.map((recipe) => (
             <div
@@ -240,31 +281,22 @@ function RecipesPage({ user, theme }) {
                 padding: "12px 0",
                 display: "flex",
                 justifyContent: "space-between",
+                gap: 12,
                 alignItems: "center",
-                gap: "12px",
                 flexWrap: "wrap",
               }}
             >
               <div>
                 <div style={{ fontWeight: 800 }}>{recipe.name}</div>
-                <div style={{ color: theme.textSoft, fontSize: "14px" }}>
-                  {recipe.objective || "No objective"}
-                </div>
+                <div style={{ color: theme.textSoft }}>{recipe.objective || "-"}</div>
               </div>
 
-              <div style={{ display: "flex", gap: "10px" }}>
-                <button style={buttonStyle} onClick={() => loadRecipeDetails(recipe.id)}>
-                  Voir
-                </button>
-                {canEdit && (
-                  <button
-                    style={dangerButtonStyle}
-                    onClick={() => handleDeleteRecipe(recipe.id)}
-                  >
-                    Supprimer
-                  </button>
-                )}
-              </div>
+              <button
+                style={buttonStyle}
+                onClick={() => loadRecipeDetails(recipe.id)}
+              >
+                Voir
+              </button>
             </div>
           ))
         ) : (
@@ -272,174 +304,131 @@ function RecipesPage({ user, theme }) {
         )}
       </div>
 
-      {canEdit && (
-        <div style={cardStyle}>
-          <h3>Créer une recette</h3>
-
-          <div style={{ marginBottom: "12px" }}>
-            <label>Nom</label>
-            <input
-              style={inputStyle}
-              value={newRecipe.name}
-              onChange={(e) => setNewRecipe({ ...newRecipe, name: e.target.value })}
-            />
-          </div>
-
-          <div style={{ marginBottom: "12px" }}>
-            <label>Description</label>
-            <textarea
-              style={{ ...inputStyle, minHeight: "90px" }}
-              value={newRecipe.description}
-              onChange={(e) =>
-                setNewRecipe({ ...newRecipe, description: e.target.value })
-              }
-            />
-          </div>
-
-          <div style={{ marginBottom: "12px" }}>
-            <label>Objectif</label>
-            <textarea
-              style={{ ...inputStyle, minHeight: "90px" }}
-              value={newRecipe.objective}
-              onChange={(e) =>
-                setNewRecipe({ ...newRecipe, objective: e.target.value })
-              }
-            />
-          </div>
-
-          <button style={buttonStyle} onClick={handleCreateRecipe}>
-            Créer la recette
-          </button>
-        </div>
-      )}
-
       {selectedRecipe && (
-        <div style={cardStyle}>
-          <h3>Détail recette : {selectedRecipe.name}</h3>
-          <p><strong>Description :</strong> {selectedRecipe.description || "-"}</p>
-          <p><strong>Objectif :</strong> {selectedRecipe.objective || "-"}</p>
-          <p><strong>Créée par :</strong> {selectedRecipe.created_by || "-"}</p>
+        <>
+          <div style={cardStyle}>
+            <h3 style={{ marginTop: 0 }}>Détail recette : {selectedRecipe.name}</h3>
+            <p><strong>Description :</strong> {selectedRecipe.description || "-"}</p>
+            <p><strong>Objectif :</strong> {selectedRecipe.objective || "-"}</p>
+            <p><strong>Créée par :</strong> {selectedRecipe.created_by || "-"}</p>
+            <p><strong>Active :</strong> {selectedRecipe.is_active ? "Oui" : "Non"}</p>
+          </div>
 
-          <h4 style={{ marginTop: "20px" }}>Étapes</h4>
-          {selectedSteps.length > 0 ? (
-            selectedSteps.map((step) => (
-              <div
-                key={step.id}
-                style={{
-                  border: `1px solid ${theme.border}`,
-                  borderRadius: "14px",
-                  padding: "14px",
-                  marginBottom: "12px",
-                  background: theme.panel,
-                }}
-              >
-                <p><strong>Ordre :</strong> {step.step_order}</p>
-                <p><strong>Nom :</strong> {step.step_name}</p>
-                <p><strong>Durée :</strong> {step.duration_min} min</p>
-                <p><strong>Temp setpoint :</strong> {step.temp_setpoint || "-"}</p>
-                <p><strong>pH setpoint :</strong> {step.ph_setpoint || "-"}</p>
-                <p><strong>DO setpoint :</strong> {step.do_setpoint || "-"}</p>
-                <p><strong>RPM setpoint :</strong> {step.rpm_setpoint || "-"}</p>
-                <p><strong>Notes :</strong> {step.notes || "-"}</p>
+          <div style={cardStyle}>
+            <h3 style={{ marginTop: 0 }}>Ajouter une étape</h3>
 
-                {canEdit && (
-                  <button
-                    style={dangerButtonStyle}
-                    onClick={() => handleDeleteStep(step.id)}
-                  >
-                    Supprimer étape
-                  </button>
-                )}
-              </div>
-            ))
-          ) : (
-            <p>Aucune étape définie</p>
-          )}
-
-          {canEdit && (
-            <>
-              <h4 style={{ marginTop: "20px" }}>Ajouter une étape</h4>
-
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px" }}>
-                <div>
-                  <label>Ordre</label>
-                  <input
-                    style={inputStyle}
-                    value={newStep.step_order}
-                    onChange={(e) => setNewStep({ ...newStep, step_order: Number(e.target.value) })}
-                  />
-                </div>
-
-                <div>
-                  <label>Nom</label>
-                  <input
-                    style={inputStyle}
-                    value={newStep.step_name}
-                    onChange={(e) => setNewStep({ ...newStep, step_name: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label>Durée (min)</label>
-                  <input
-                    style={inputStyle}
-                    value={newStep.duration_min}
-                    onChange={(e) => setNewStep({ ...newStep, duration_min: Number(e.target.value) })}
-                  />
-                </div>
-
-                <div>
-                  <label>Temp</label>
-                  <input
-                    style={inputStyle}
-                    value={newStep.temp_setpoint}
-                    onChange={(e) => setNewStep({ ...newStep, temp_setpoint: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label>pH</label>
-                  <input
-                    style={inputStyle}
-                    value={newStep.ph_setpoint}
-                    onChange={(e) => setNewStep({ ...newStep, ph_setpoint: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label>DO</label>
-                  <input
-                    style={inputStyle}
-                    value={newStep.do_setpoint}
-                    onChange={(e) => setNewStep({ ...newStep, do_setpoint: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label>RPM</label>
-                  <input
-                    style={inputStyle}
-                    value={newStep.rpm_setpoint}
-                    onChange={(e) => setNewStep({ ...newStep, rpm_setpoint: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div style={{ marginTop: "12px" }}>
-                <label>Notes</label>
-                <textarea
-                  style={{ ...inputStyle, minHeight: "90px" }}
-                  value={newStep.notes}
-                  onChange={(e) => setNewStep({ ...newStep, notes: e.target.value })}
+            <div style={gridStyle}>
+              <div>
+                <label>Ordre</label>
+                <input
+                  type="number"
+                  style={inputStyle}
+                  value={stepForm.step_order}
+                  onChange={(e) => setStepForm({ ...stepForm, step_order: e.target.value })}
                 />
               </div>
 
-              <button style={{ ...buttonStyle, marginTop: "14px" }} onClick={handleAddStep}>
-                Ajouter étape
-              </button>
-            </>
-          )}
-        </div>
+              <div>
+                <label>Nom étape</label>
+                <input
+                  style={inputStyle}
+                  value={stepForm.step_name}
+                  onChange={(e) => setStepForm({ ...stepForm, step_name: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label>Durée (min)</label>
+                <input
+                  type="number"
+                  style={inputStyle}
+                  value={stepForm.duration_min}
+                  onChange={(e) => setStepForm({ ...stepForm, duration_min: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label>Température</label>
+                <input
+                  type="number"
+                  style={inputStyle}
+                  value={stepForm.temp_setpoint}
+                  onChange={(e) => setStepForm({ ...stepForm, temp_setpoint: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label>pH</label>
+                <input
+                  type="number"
+                  style={inputStyle}
+                  value={stepForm.ph_setpoint}
+                  onChange={(e) => setStepForm({ ...stepForm, ph_setpoint: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label>DO</label>
+                <input
+                  type="number"
+                  style={inputStyle}
+                  value={stepForm.do_setpoint}
+                  onChange={(e) => setStepForm({ ...stepForm, do_setpoint: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label>RPM</label>
+                <input
+                  type="number"
+                  style={inputStyle}
+                  value={stepForm.rpm_setpoint}
+                  onChange={(e) => setStepForm({ ...stepForm, rpm_setpoint: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginTop: 12 }}>
+              <label>Notes</label>
+              <textarea
+                style={{ ...inputStyle, minHeight: 80 }}
+                value={stepForm.notes}
+                onChange={(e) => setStepForm({ ...stepForm, notes: e.target.value })}
+              />
+            </div>
+
+            <button style={{ ...buttonStyle, marginTop: 14 }} onClick={addStep}>
+              Ajouter étape
+            </button>
+          </div>
+
+          <div style={cardStyle}>
+            <h3 style={{ marginTop: 0 }}>Étapes de la recette</h3>
+
+            {recipeSteps.length > 0 ? (
+              recipeSteps.map((step) => (
+                <div
+                  key={step.id}
+                  style={{
+                    borderBottom: `1px solid ${theme.border}`,
+                    padding: "12px 0",
+                  }}
+                >
+                  <p><strong>Ordre :</strong> {step.step_order}</p>
+                  <p><strong>Nom :</strong> {step.step_name}</p>
+                  <p><strong>Durée :</strong> {step.duration_min} min</p>
+                  <p><strong>Température :</strong> {step.temp_setpoint ?? "-"}</p>
+                  <p><strong>pH :</strong> {step.ph_setpoint ?? "-"}</p>
+                  <p><strong>DO :</strong> {step.do_setpoint ?? "-"}</p>
+                  <p><strong>RPM :</strong> {step.rpm_setpoint ?? "-"}</p>
+                  <p><strong>Notes :</strong> {step.notes || "-"}</p>
+                </div>
+              ))
+            ) : (
+              <p>Aucune étape pour cette recette</p>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from app.services.simulator import start_simulation_background
 
+
 from app.core.bootstrap_schema import init_database
 from app.core.db import (
     engine,
@@ -787,7 +788,6 @@ def save_setting(payload: SettingUpdateRequest):
     save_audit_log(payload.actor, "update_setting", payload.setting_key, payload.setting_value)
     return {"status": "success"}
 
-
 @app.get("/recipes")
 def recipes():
     return {"rows": get_all_recipes()}
@@ -808,13 +808,25 @@ def recipe_details(recipe_id: int):
 
 @app.post("/recipes")
 def create_recipe_route(payload: RecipeCreateRequest):
+    if not payload.name.strip():
+        raise HTTPException(status_code=400, detail="Recipe name is required")
+
     recipe_id = create_recipe(
-        payload.name,
-        payload.description,
-        payload.objective,
-        payload.created_by,
+        payload.name.strip(),
+        payload.description.strip(),
+        payload.objective.strip(),
+        payload.created_by.strip() if payload.created_by else "admin",
     )
-    save_audit_log(payload.created_by, "create_recipe", str(recipe_id), payload.name)
+
+    save_audit_log(
+        payload.created_by.strip() if payload.created_by else "admin",
+        "create_recipe",
+        str(recipe_id),
+        payload.name.strip(),
+    )
+
+    save_system_event("recipe_created", f"Recipe {payload.name.strip()} created")
+
     return {"status": "success", "recipe_id": recipe_id}
 
 
@@ -872,7 +884,6 @@ def update_recipe_step_route(step_id: int, payload: RecipeStepUpdateRequest):
 def delete_recipe_step_route(step_id: int):
     delete_recipe_step(step_id)
     return {"status": "success"}
-
 
 @app.get("/batches")
 def batches():
